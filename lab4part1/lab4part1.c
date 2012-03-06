@@ -27,7 +27,7 @@ ISR(ADC_vect)
 	adc_val = hival*256 + loval;
 	
 	if(nowScanning)
-	{
+	{	
 		channel1Ready=1;
 	}		
 	else
@@ -66,31 +66,74 @@ void startADC(int chan)
 
 //PWM Section
 
+/*0% to 100% duty cycle value*/
+			  //0                                           10//
 int pwm_val[]={0, 26, 51, 77, 102, 128, 153, 179, 204, 230, 255};
 int index=0;
 
 void setupPWM()
 {
+	//Set initial count register to zero
 	TCNT2=0;
+	
+	//Initialised Duty Cycle to zero
 	OCR2A=0;
-	TCCR2A=0b10000001;
-	TCCR2B=0b00000000;
+	
+	//Fixed by lab sheet
+	
+	TCCR2A	=0b10000001;
+	TCCR2B	=0b11000000;
+	
+	//Enabled Interrupt 
 	TIMSK2|=0b10;
+}
+
+void setupPWM0()
+{
+	// Set initial timer value
+TCNT0=0;
+// Set the initial OCR0A values
+OCR0A=0;
+// and choose mode 1 Phase correct PWM
+TCCR0A=0b10000001;
+// Enable compare interrupt
+TIMSK0 |= 0b10;
+}
+
+int pwm_values[]={0, 26, 51, 77, 102, 128, 153, 179, 204, 230, 255};
+int index0=0;
+
+void startPWM0()
+{
+// Set prescaler of 0b011, or 64.
+TCCR0B=0b00000011;
+// Set global interrupts
+sei();
+}
+
+ISR(TIMER0_COMPA_vect)
+{
+// Increment the index to go to next duty cycle value.
+index=(index+1)%11;
+OCR0A=pwm_values[index0];
 }
 
 ISR(TIMER2_COMPA_vect)
 {
-	index=(index+1)%11;
-	OCR2A=pwm_val[index];
+	//Progressive Light Up
+	//index=(index+1)%11;
+	//OCR2A=pwm_val[index]; 	
 }
 
 void startPWM()
 {
+	//Set Prescaler (256) & Start PWM generation
 	TCCR2B=0b00000100;
+	
 	sei();
 }
 
-//Output
+//Buzzer Output
 
 int remap(int val, int min_val, int max_val)
 {
@@ -139,9 +182,17 @@ int main(void)
 {
 	unsigned constrained = 0, shutOffBuzzer = 1;
 	
+	//Testing
+	setupPWM0();
+	startPWM0();
+	
+	while(1) {}
+	
 	//Set GPIO Pins
 	if(!shutOffBuzzer)
 		DDRB|=0b00100000;  //PIN 13 output to buzzer
+		
+	DDRB|=0b00001000;
 	
 	//Set up PWM and ADC
 	setupADC();
@@ -149,7 +200,7 @@ int main(void)
 	
 	//Poll ADC channel 0
 			
-		startADC(0);
+	startADC(0);
 		
     while(1)
     {
@@ -161,6 +212,7 @@ int main(void)
 		
 			//Output tone )
 			tone(constrained);
+			
 			startADC(1);
 			channel0Ready = 0;
 		}
@@ -168,7 +220,9 @@ int main(void)
 		if(channel1Ready)
 		{
 			startPWM();
+			
 			startADC(0);
+			
 			channel1Ready = 0;
 		}			
     }
